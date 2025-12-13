@@ -187,7 +187,8 @@ struct SettingsView: View {
                 // Загружаем изображение на сервер
                 if let imageData = image.jpegData(compressionQuality: 0.8) {
                     let uploadResponse = try await APIService.shared.uploadImage(imageData: imageData)
-                    let imageUrl = APIService.shared.getImageURL(uploadResponse.url)
+                    // uploadResponse.url уже содержит полный URL от сервера
+                    let imageUrl = uploadResponse.url
                     
                     // Обновляем профиль
                     let updatedProfile = try await APIService.shared.updateProfile(name: nil, image: imageUrl)

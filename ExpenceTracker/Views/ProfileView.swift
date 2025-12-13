@@ -412,7 +412,8 @@ struct PostCard: View {
                 
                 // Изображение (если есть)
                 if let imageUrl = post.imageUrl {
-                    AsyncImage(url: URL(string: APIService.shared.getImageURL(imageUrl))) { image in
+                    // imageUrl уже обработан в loadPosts() через getImageURL
+                    AsyncImage(url: URL(string: imageUrl)) { image in
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)

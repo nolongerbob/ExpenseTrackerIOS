@@ -154,7 +154,8 @@ struct CreatePostView: View {
             if let image = selectedImage,
                let imageData = image.jpegData(compressionQuality: 0.8) {
                 let uploadResponse = try await APIService.shared.uploadImage(imageData: imageData)
-                imageUrl = APIService.shared.getImageURL(uploadResponse.url)
+                // uploadResponse.url уже содержит полный URL от сервера
+                imageUrl = uploadResponse.url
             }
             
             // Создаем пост через API
