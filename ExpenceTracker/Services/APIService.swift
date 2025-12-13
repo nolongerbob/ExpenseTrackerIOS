@@ -10,8 +10,8 @@ class APIService {
     
     // API Server URL
     // Для локальной разработки: "http://localhost:3001"
-    // Для Render: "https://expense-tracker-api.onrender.com"
-    private let baseURL = "https://expense-tracker-api.onrender.com"
+    // Для Render: "https://expense-tracker-api-sbxx.onrender.com"
+    private let baseURL = "https://expense-tracker-api-sbxx.onrender.com"
     
     func getImageURL(_ path: String) -> String {
         if path.hasPrefix("http") {
