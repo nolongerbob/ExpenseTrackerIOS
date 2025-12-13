@@ -8,12 +8,10 @@ import Foundation
 class APIService {
     static let shared = APIService()
     
-    // TODO: Замените на ваш URL API сервера
+    // API Server URL
     // Для локальной разработки: "http://localhost:3001"
-    // Для Railway: "https://your-app.up.railway.app"
-    // Для Render: "https://your-app.onrender.com"
-    // Для ngrok (временный): "https://your-ngrok-url.ngrok-free.dev"
-    private let baseURL = "https://portliest-elias-uninterestingly.ngrok-free.dev" // Замените на ваш Railway/Render URL после деплоя
+    // Для Render: "https://expense-tracker-api.onrender.com"
+    private let baseURL = "https://expense-tracker-api.onrender.com"
     
     func getImageURL(_ path: String) -> String {
         if path.hasPrefix("http") {
