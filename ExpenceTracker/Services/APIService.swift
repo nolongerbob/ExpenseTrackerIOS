@@ -372,9 +372,10 @@ class APIService {
             throw APIError.invalidResponse
         }
         
+        let responseString = String(data: data, encoding: .utf8) ?? ""
+        
         // Проверяем, не вернул ли ngrok HTML страницу (предупреждение) - только если используется ngrok
         if baseURL.contains("ngrok-free.dev") {
-            let responseString = String(data: data, encoding: .utf8) ?? ""
             let isHTML = responseString.contains("<!DOCTYPE html") || responseString.contains("<html")
             let isJSON = responseString.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("{") || responseString.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[")
             
