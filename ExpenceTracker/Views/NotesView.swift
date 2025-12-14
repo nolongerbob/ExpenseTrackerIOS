@@ -8,6 +8,8 @@ import UserNotifications
 
 struct NotesView: View {
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var showAddNote = false
     @State private var selectedNote: Note?
     @AppStorage("notificationPermissionRequested") private var notificationPermissionRequested = false
@@ -19,15 +21,16 @@ struct NotesView: View {
         case calendar = "Календарь"
     }
     
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
                     // Переключатель Список/Календарь
@@ -52,7 +55,7 @@ struct NotesView: View {
                 ToolbarItem(placement: .principal) {
                     Text("Заметки")
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -60,7 +63,7 @@ struct NotesView: View {
                         showAddNote = true
                     } label: {
                         Image(systemName: "plus")
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                     }
                 }
             }
@@ -98,16 +101,25 @@ struct NotesView: View {
             }
             
             if visibleNotes.isEmpty {
-                VStack(spacing: 16) {
-                    Image(systemName: "note.text")
-                        .font(.system(size: 64))
-                        .foregroundStyle(.secondary)
-                    Text("Нет заметок")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-                    Text("Нажмите + чтобы создать заметку")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(spacing: 16) {
+                        Spacer()
+                            .frame(height: 100) // Отступ сверху
+                        Image(systemName: "note.text")
+                            .font(.system(size: 64))
+                            .foregroundStyle(.secondary)
+                        Text("Нет заметок")
+                            .font(.title2)
+                            .foregroundStyle(.secondary)
+                        Text("Нажмите + чтобы создать заметку")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .refreshable {
+                    await refreshData()
                 }
             } else {
                 ScrollView {
@@ -221,6 +233,13 @@ struct NotesView: View {
 struct NoteCard: View {
     let note: Note
     let onTap: () -> Void
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
     
     var body: some View {
         Button(action: onTap) {
@@ -229,7 +248,7 @@ struct NoteCard: View {
                     HStack {
                         Text(note.title)
                             .font(.headline)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                         
                         Spacer()
                         
@@ -270,7 +289,14 @@ struct NoteCard: View {
 struct AddNoteView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     let initialDate: Date?
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
     let onDismiss: () -> Void
     
     @State private var title = ""
@@ -293,12 +319,8 @@ struct AddNoteView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -309,7 +331,12 @@ struct AddNoteView: View {
                                     .foregroundStyle(.secondary)
                                 
                                 TextField("Введите название", text: $title)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
+                                    .padding(12)
+                                    .background(AppColors.textFieldBackground(for: currentColorScheme))
+                                    .cornerRadius(12)
+                                    .contentShape(Rectangle())
+                                    .frame(minHeight: 44)
                             }
                         }
                         .padding(.horizontal)
@@ -321,8 +348,13 @@ struct AddNoteView: View {
                                     .foregroundStyle(.secondary)
                                 
                                 TextField("Введите текст заметки", text: $content, axis: .vertical)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
                                     .lineLimit(5...10)
+                                    .padding(12)
+                                    .background(AppColors.textFieldBackground(for: currentColorScheme))
+                                    .cornerRadius(12)
+                                    .contentShape(Rectangle())
+                                    .frame(minHeight: 100)
                             }
                         }
                         .padding(.horizontal)
@@ -342,7 +374,7 @@ struct AddNoteView: View {
                                 if hasNoteDate {
                                     DatePicker("Дата", selection: $noteDate, displayedComponents: .date)
                                         .datePickerStyle(.compact)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 } else {
                                     Text("Заметка будет видна всегда в списке")
                                         .font(.caption)
@@ -372,7 +404,7 @@ struct AddNoteView: View {
                                         get: { reminderDate },
                                         set: { self.reminderDate = $0 }
                                     ), displayedComponents: [.date, .hourAndMinute])
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 }
                             }
                         }
@@ -392,18 +424,16 @@ struct AddNoteView: View {
                             if isLoading {
                                 ProgressView()
                                     .progressViewStyle(.circular)
-                                    .tint(.white)
+                                    .tint(AppColors.primaryText(for: currentColorScheme))
                             } else {
                                 Text("Сохранить")
                                     .font(.headline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                             }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(title.isEmpty ? Color.gray : Color.blue)
-                        .cornerRadius(12)
+                        .buttonStyle(LiquidGlassButton())
                         .disabled(title.isEmpty || isLoading)
+                        .opacity(title.isEmpty || isLoading ? 0.5 : 1.0)
                         .padding(.horizontal)
                     }
                     .padding(.top)
@@ -414,14 +444,16 @@ struct AddNoteView: View {
                 ToolbarItem(placement: .principal) {
                     Text("Новая заметка")
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                 }
                 
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Отмена") {
                         dismiss()
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
+                    .buttonStyle(.plain)
+                    .font(.system(size: 17, weight: .regular))
                 }
             }
         }
@@ -487,7 +519,14 @@ struct AddNoteView: View {
 struct EditNoteView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     let note: Note
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
     @State private var title: String
     @State private var content: String
     @State private var hasNoteDate: Bool
@@ -513,12 +552,8 @@ struct EditNoteView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -529,7 +564,12 @@ struct EditNoteView: View {
                                     .foregroundStyle(.secondary)
                                 
                                 TextField("Введите название", text: $title)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
+                                    .padding(12)
+                                    .background(AppColors.textFieldBackground(for: currentColorScheme))
+                                    .cornerRadius(12)
+                                    .contentShape(Rectangle())
+                                    .frame(minHeight: 44)
                             }
                         }
                         .padding(.horizontal)
@@ -541,8 +581,13 @@ struct EditNoteView: View {
                                     .foregroundStyle(.secondary)
                                 
                                 TextField("Введите текст заметки", text: $content, axis: .vertical)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
                                     .lineLimit(5...10)
+                                    .padding(12)
+                                    .background(AppColors.textFieldBackground(for: currentColorScheme))
+                                    .cornerRadius(12)
+                                    .contentShape(Rectangle())
+                                    .frame(minHeight: 100)
                             }
                         }
                         .padding(.horizontal)
@@ -562,7 +607,7 @@ struct EditNoteView: View {
                                 if hasNoteDate {
                                     DatePicker("Дата", selection: $noteDate, displayedComponents: .date)
                                         .datePickerStyle(.compact)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 } else {
                                     Text("Заметка будет видна всегда в списке")
                                         .font(.caption)
@@ -592,7 +637,7 @@ struct EditNoteView: View {
                                         get: { reminderDate },
                                         set: { self.reminderDate = $0 }
                                     ), displayedComponents: [.date, .hourAndMinute])
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 }
                             }
                         }
@@ -612,18 +657,16 @@ struct EditNoteView: View {
                             if isLoading {
                                 ProgressView()
                                     .progressViewStyle(.circular)
-                                    .tint(.white)
+                                    .tint(AppColors.primaryText(for: currentColorScheme))
                             } else {
                                 Text("Сохранить")
                                     .font(.headline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                             }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(title.isEmpty ? Color.gray : Color.blue)
-                        .cornerRadius(12)
+                        .buttonStyle(LiquidGlassButton())
                         .disabled(title.isEmpty || isLoading)
+                        .opacity(title.isEmpty || isLoading ? 0.5 : 1.0)
                         .padding(.horizontal)
                         
                         Button {
@@ -633,10 +676,7 @@ struct EditNoteView: View {
                                 .font(.headline)
                                 .foregroundStyle(.red)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.red.opacity(0.2))
-                        .cornerRadius(12)
+                        .buttonStyle(LiquidGlassButton())
                         .padding(.horizontal)
                     }
                     .padding(.top)
@@ -644,17 +684,19 @@ struct EditNoteView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .principal) {
-                    Text("Редактировать заметку")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                }
+                        ToolbarItem(placement: .principal) {
+                            Text("Редактировать заметку")
+                                .font(.headline)
+                                .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
+                        }
                 
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Отмена") {
                         dismiss()
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
+                    .buttonStyle(.plain)
+                    .font(.system(size: 17, weight: .regular))
                 }
             }
             .confirmationDialog("Удалить заметку?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {

@@ -8,16 +8,19 @@ import SwiftUI
 struct AllExpensesView: View {
     @Environment(ExpenseModelData.self) private var modelData
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
     
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 if modelData.expenses.isEmpty {
                     VStack(spacing: 16) {
@@ -73,7 +76,7 @@ struct AllExpensesView: View {
                             )
                         } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: Expense.ExpenseType.fromAPI(expense.type)),
                         note: expense.note,
-                        date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                        date: APIService.parseDate(expense.spentAt) ?? Date(),
                         type: Expense.ExpenseType.fromAPI(expense.type)
                     )
                 }
@@ -88,54 +91,71 @@ struct ExpenseRow: View {
     let expense: Expense
     let onDelete: () -> Void
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
+    @State private var showEditExpense = false
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
     
     var body: some View {
-        LiquidGlassCard {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(expense.note ?? "Без описания")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                    
-                    HStack(spacing: 8) {
-                        Text(expense.category.name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+        Button {
+            showEditExpense = true
+        } label: {
+            LiquidGlassCard {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(expense.note ?? "Без описания")
+                            .font(.headline)
+                            .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                         
-                        Text("•")
-                            .foregroundStyle(.secondary)
-                        
-                        Text(expense.date, style: .date)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text("-\(formatCurrency(expense.amount))")
-                        .font(.headline)
-                        .foregroundStyle(.red)
-                    
-                    Button {
-                        showDeleteConfirmation = true
-                    } label: {
-                        if isDeleting {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                                .tint(.red)
-                        } else {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
+                        HStack(spacing: 8) {
+                            Text(expense.category.name)
                                 .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            
+                            Text(expense.date, style: .date)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .disabled(isDeleting)
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 8) {
+                        Text("-\(formatCurrency(expense.amount))")
+                            .font(.headline)
+                            .foregroundStyle(.red)
+                        
+                        Button {
+                            showDeleteConfirmation = true
+                        } label: {
+                            if isDeleting {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .tint(.red)
+                            } else {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.red)
+                                    .font(.caption)
+                            }
+                        }
+                        .disabled(isDeleting)
+                        .buttonStyle(.plain)
+                    }
                 }
             }
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showEditExpense) {
+            EditExpenseView(expense: expense)
         }
         .confirmationDialog("Удалить расход?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("Удалить", role: .destructive) {
@@ -182,7 +202,7 @@ struct ExpenseRow: View {
                             )
                         } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: Expense.ExpenseType.fromAPI(expense.type)),
                         note: expense.note,
-                        date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                        date: APIService.parseDate(expense.spentAt) ?? Date(),
                         type: Expense.ExpenseType.fromAPI(expense.type)
                     )
                 }

@@ -9,10 +9,13 @@ import UIKit
 struct AddExpenseView: View {
     @Environment(ExpenseModelData.self) private var modelData
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var transactionType: TransactionType = .expense
     @State private var amount: String = ""
     @State private var selectedCategory: Category?
     @State private var note: String = ""
+    @State private var date: Date = Date()
     @State private var showAddCategory = false
     @State private var newCategoryName = ""
     @State private var newCategoryColor: Color = .blue
@@ -41,15 +44,16 @@ struct AddExpenseView: View {
         return modelData.categories.filter { $0.type == targetType }
     }
     
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -76,7 +80,12 @@ struct AddExpenseView: View {
                                 TextField("0", text: $amount)
                                     .font(.system(size: 48, weight: .bold))
                                     .keyboardType(.decimalPad)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
+                                    .padding(12)
+                                    .background(AppColors.textFieldBackground(for: currentColorScheme))
+                                    .cornerRadius(12)
+                                    .contentShape(Rectangle())
+                                    .frame(minHeight: 60)
                             }
                         }
                         .padding(.horizontal)
@@ -99,6 +108,7 @@ struct AddExpenseView: View {
                                         Image(systemName: showAddCategory ? "minus.circle.fill" : "plus.circle.fill")
                                             .foregroundStyle(.blue)
                                     }
+                                    .buttonStyle(LiquidGlassSmallButton())
                                 }
                                 
                                 if showAddCategory {
@@ -107,9 +117,9 @@ struct AddExpenseView: View {
                                         TextField("Название категории", text: $newCategoryName)
                                             .textFieldStyle(.plain)
                                             .padding(12)
-                                            .background(Color.white.opacity(0.1))
+                                            .background(AppColors.textFieldBackground(for: currentColorScheme))
                                             .cornerRadius(8)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
                                             .onSubmit {
                                                 hideKeyboard()
                                             }
@@ -170,11 +180,9 @@ struct AddExpenseView: View {
                                                     .foregroundStyle(.white)
                                             }
                                         }
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 10)
-                                        .background(newCategoryName.isEmpty || isCreatingCategory ? Color.gray : newCategoryColor)
-                                        .cornerRadius(8)
+                                        .buttonStyle(LiquidGlassButton())
                                         .disabled(newCategoryName.isEmpty || isCreatingCategory)
+                                        .opacity(newCategoryName.isEmpty || isCreatingCategory ? 0.5 : 1.0)
                                         
                                         Button {
                                             withAnimation {
@@ -188,6 +196,7 @@ struct AddExpenseView: View {
                                                 .font(.subheadline)
                                                 .foregroundStyle(.secondary)
                                         }
+                                        .buttonStyle(LiquidGlassSmallButton())
                                     }
                                     .padding(.top, 8)
                                 } else {
@@ -208,6 +217,21 @@ struct AddExpenseView: View {
                                         }
                                     }
                                 }
+                            }
+                        }
+                        .padding(.horizontal)
+                        
+                        // Дата
+                        LiquidGlassCard {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Дата")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                
+                                DatePicker("Дата", selection: $date, displayedComponents: .date)
+                                    .datePickerStyle(.compact)
+                                    .tint(.blue)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                             }
                         }
                         .padding(.horizontal)
@@ -244,17 +268,17 @@ struct AddExpenseView: View {
                             if isLoading {
                                 ProgressView()
                                     .progressViewStyle(.circular)
-                                    .tint(.white)
+                                    .tint(AppColors.primaryText(for: currentColorScheme))
                             } else {
                                 Text("Сохранить")
                                     .font(.headline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                             }
                         }
                         .buttonStyle(LiquidGlassButton())
-                        .frame(maxWidth: .infinity)
                         .padding(.horizontal)
                         .disabled(isLoading || amount.isEmpty || selectedCategory == nil)
+                        .opacity(isLoading || amount.isEmpty || selectedCategory == nil ? 0.5 : 1.0)
                     }
                     .padding(.vertical)
                 }
@@ -291,7 +315,8 @@ struct AddExpenseView: View {
                 amount: amountValue,
                 categoryId: categoryId,
                 note: note.isEmpty ? nil : note,
-                type: expenseType
+                type: expenseType,
+                spentAt: date
             )
             
             // Обновляем список расходов из API
@@ -315,7 +340,7 @@ struct AddExpenseView: View {
                             )
                         } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: Expense.ExpenseType.fromAPI(expense.type)),
                         note: expense.note,
-                        date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                        date: APIService.parseDate(expense.spentAt) ?? Date(),
                         type: Expense.ExpenseType.fromAPI(expense.type)
                     )
                 }
@@ -324,14 +349,24 @@ struct AddExpenseView: View {
                 amount = ""
                 selectedCategory = nil
                 note = ""
+                date = Date()
                 
                 // Показываем баннер успеха
                 showSuccessBanner = true
                 isLoading = false
             }
             
-            // Закрываем экран через 1.5 секунды
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            // Скрываем баннер через 2 секунды
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            
+            await MainActor.run {
+                withAnimation {
+                    showSuccessBanner = false
+                }
+            }
+            
+            // Закрываем экран через еще 0.3 секунды (после анимации скрытия)
+            try? await Task.sleep(nanoseconds: 300_000_000)
             
             await MainActor.run {
                 dismiss()
@@ -509,29 +544,30 @@ struct CategoryButton: View {
     }
     
     var body: some View {
-        VStack(spacing: 8) {
-            Image(systemName: category.icon)
-                .font(.title2)
-                .foregroundStyle(isSelected ? .white : category.color)
-            
-            Text(category.name)
-                .font(.caption)
-                .foregroundStyle(isSelected ? .white : .secondary)
-        }
-        .padding()
-        .frame(width: 100)
-        .background {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(isSelected ? category.color : Color.clear)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(category.color, lineWidth: isSelected ? 0 : 1)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
+        Button {
             action()
+        } label: {
+            VStack(spacing: 8) {
+                Image(systemName: category.icon)
+                    .font(.title2)
+                    .foregroundStyle(isSelected ? .white : category.color)
+                
+                Text(category.name)
+                    .font(.caption)
+                    .foregroundStyle(isSelected ? .white : .secondary)
+            }
+            .padding()
+            .frame(width: 100)
+            .background {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(isSelected ? category.color : Color.clear)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(category.color, lineWidth: isSelected ? 0 : 1)
+            }
         }
+        .buttonStyle(.plain)
         .onLongPressGesture(minimumDuration: 0.5) {
             if onDelete != nil {
                 showDeleteConfirmation = true

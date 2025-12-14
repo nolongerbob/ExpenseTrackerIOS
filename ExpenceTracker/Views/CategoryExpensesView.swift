@@ -8,6 +8,13 @@ import SwiftUI
 struct CategoryExpensesView: View {
     let category: Category
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
     
     var categoryExpenses: [Expense] {
         modelData.expenses.filter { $0.category.id == category.id && $0.type == .expense }
@@ -21,12 +28,8 @@ struct CategoryExpensesView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 if categoryExpenses.isEmpty {
                     VStack(spacing: 16) {
@@ -49,7 +52,7 @@ struct CategoryExpensesView: View {
                                     
                                     Text(formatCurrency(categoryTotal))
                                         .font(.system(size: 36, weight: .bold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                     
                                     Text("Количество операций: \(categoryExpenses.count)")
                                         .font(.caption)
@@ -81,6 +84,7 @@ struct CategoryExpensesView: View {
             .navigationTitle(category.name)
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarColorScheme(currentColorScheme, for: .navigationBar)
         }
     }
     
@@ -105,7 +109,7 @@ struct CategoryExpensesView: View {
                             )
                         } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: .expense),
                         note: expense.note,
-                        date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                        date: APIService.parseDate(expense.spentAt) ?? Date(),
                         type: Expense.ExpenseType.fromAPI(expense.type)
                     )
                 }
@@ -148,7 +152,7 @@ struct CategoryExpensesView: View {
                                 )
                             } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: .expense),
                             note: expense.note,
-                            date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                            date: APIService.parseDate(expense.spentAt) ?? Date(),
                             type: Expense.ExpenseType.fromAPI(expense.type)
                         )
                     }

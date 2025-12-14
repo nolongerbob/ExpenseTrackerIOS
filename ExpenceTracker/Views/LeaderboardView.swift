@@ -7,16 +7,19 @@ import SwiftUI
 
 struct LeaderboardView: View {
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
     
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 if modelData.leaderboard.isEmpty {
                     VStack(spacing: 16) {

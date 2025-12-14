@@ -8,28 +8,31 @@ import SwiftUI
 struct RegisterView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var email = ""
     @State private var password = ""
     @State private var name = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 32) {
                         VStack(spacing: 8) {
                             Text("Создать аккаунт")
                                 .font(.system(size: 34, weight: .bold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                             
                             Text("Зарегистрируйтесь для начала")
                                 .font(.subheadline)
@@ -47,9 +50,9 @@ struct RegisterView: View {
                                     TextField("Ваше имя", text: $name)
                                         .textFieldStyle(.plain)
                                         .padding(12)
-                                        .background(Color.white.opacity(0.1))
+                                        .background(AppColors.textFieldBackground(for: currentColorScheme))
                                         .cornerRadius(8)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 8) {
@@ -62,9 +65,9 @@ struct RegisterView: View {
                                         .keyboardType(.emailAddress)
                                         .autocapitalization(.none)
                                         .padding(12)
-                                        .background(Color.white.opacity(0.1))
+                                        .background(AppColors.textFieldBackground(for: currentColorScheme))
                                         .cornerRadius(8)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 8) {
@@ -76,9 +79,9 @@ struct RegisterView: View {
                                         .textFieldStyle(.plain)
                                         .autocapitalization(.none)
                                         .padding(12)
-                                        .background(Color.white.opacity(0.1))
+                                        .background(AppColors.textFieldBackground(for: currentColorScheme))
                                         .cornerRadius(8)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
                                 }
                                 
                                 if let error = errorMessage {
@@ -95,11 +98,11 @@ struct RegisterView: View {
                                     if isLoading {
                                         ProgressView()
                                             .progressViewStyle(.circular)
-                                            .tint(.white)
+                                            .tint(AppColors.primaryText(for: currentColorScheme))
                                     } else {
                                         Text("Зарегистрироваться")
                                             .font(.headline)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                     }
                                 }
                                 .buttonStyle(LiquidGlassButton())

@@ -20,6 +20,34 @@ class APIService {
         return "\(baseURL)\(path)"
     }
     
+    // Вспомогательная функция для парсинга даты из ISO8601 строки
+    static func parseDate(_ dateString: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        // Пытаемся распарсить с миллисекундами
+        if let date = formatter.date(from: dateString) {
+            return date
+        }
+        
+        // Fallback: пытаемся без миллисекунд
+        let simpleFormatter = ISO8601DateFormatter()
+        simpleFormatter.formatOptions = [.withInternetDateTime]
+        if let date = simpleFormatter.date(from: dateString) {
+            return date
+        }
+        
+        // Fallback: обычный DateFormatter
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
+        if let date = dateFormatter.date(from: dateString) {
+            return date
+        }
+        
+        dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+        return dateFormatter.date(from: dateString)
+    }
+    
     private var authToken: String? {
         get {
             UserDefaults.standard.string(forKey: "auth_token")
@@ -115,7 +143,7 @@ class APIService {
         try await request(endpoint: "/api/expenses", method: "GET")
     }
     
-    func createExpense(amount: Double, categoryId: String?, note: String?, type: String = "EXPENSE") async throws -> ExpenseResponse {
+    func createExpense(amount: Double, categoryId: String?, note: String?, type: String = "EXPENSE", spentAt: Date? = nil) async throws -> ExpenseResponse {
         var body: [String: Any] = ["amount": amount, "currency": "RUB", "type": type]
         if let categoryId = categoryId {
             body["categoryId"] = categoryId
@@ -123,8 +151,36 @@ class APIService {
         if let note = note {
             body["note"] = note
         }
+        if let spentAt = spentAt {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            body["spentAt"] = formatter.string(from: spentAt)
+        }
         
         return try await request(endpoint: "/api/expenses", method: "POST", body: body)
+    }
+    
+    func updateExpense(id: String, amount: Double?, categoryId: String?, note: String?, type: String?, spentAt: Date?) async throws -> ExpenseResponse {
+        var body: [String: Any] = [:]
+        if let amount = amount {
+            body["amount"] = amount
+        }
+        if let categoryId = categoryId {
+            body["categoryId"] = categoryId
+        }
+        if let note = note {
+            body["note"] = note
+        }
+        if let type = type {
+            body["type"] = type
+        }
+        if let spentAt = spentAt {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            body["spentAt"] = formatter.string(from: spentAt)
+        }
+        
+        return try await request(endpoint: "/api/expenses/\(id)", method: "PUT", body: body)
     }
     
     func deleteExpense(id: String) async throws {
@@ -191,6 +247,13 @@ class APIService {
             endpoint: "/api/posts/\(postId)/comments",
             method: "POST",
             body: ["content": content]
+        )
+    }
+    
+    func deleteComment(postId: String, commentId: String) async throws {
+        let _: EmptyResponse = try await request(
+            endpoint: "/api/posts/\(postId)/comments/\(commentId)",
+            method: "DELETE"
         )
     }
     
@@ -326,12 +389,32 @@ class APIService {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
-            throw APIError.serverError("Upload failed")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
         }
         
-        return try JSONDecoder().decode(UploadResponse.self, from: data)
+        let responseString = String(data: data, encoding: .utf8) ?? ""
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            print("=== Upload Error ===")
+            print("Status: \(httpResponse.statusCode)")
+            print("Response: \(responseString.prefix(500))")
+            print("===================")
+            if let errorData = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                throw APIError.serverError(errorData.error)
+            }
+            throw APIError.serverError("Upload failed with status \(httpResponse.statusCode)")
+        }
+        
+        do {
+            return try JSONDecoder().decode(UploadResponse.self, from: data)
+        } catch {
+            print("=== Upload Decoding Error ===")
+            print("Error: \(error)")
+            print("Response: \(responseString)")
+            print("============================")
+            throw APIError.decodingError("Failed to decode upload response: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Request Helper
@@ -412,9 +495,25 @@ class APIService {
             throw APIError.serverError("Server error: \(httpResponse.statusCode)")
         }
         
+        // Для 204 No Content или пустого ответа возвращаем пустой EmptyResponse
+        if httpResponse.statusCode == 204 || data.isEmpty {
+            // Если ожидается EmptyResponse, возвращаем его
+            if T.self == EmptyResponse.self {
+                return EmptyResponse(success: true) as! T
+            }
+            // Если данных нет, но ожидается другой тип - это ошибка
+            if data.isEmpty {
+                throw APIError.decodingError("Empty response body for non-EmptyResponse type")
+            }
+        }
+        
         do {
             return try JSONDecoder().decode(T.self, from: data)
         } catch {
+            // Если декодирование не удалось, но это EmptyResponse и данные пустые - возвращаем пустой ответ
+            if T.self == EmptyResponse.self && data.isEmpty {
+                return EmptyResponse(success: true) as! T
+            }
             print("Decoding error: \(error)")
             print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
             throw APIError.decodingError(error.localizedDescription)
@@ -516,7 +615,7 @@ struct AuthorResponse: Codable {
 }
 
 struct LikeResponse: Codable {
-    let userId: String
+    let userId: String?
     let postId: String?
     let liked: Bool?
 }
@@ -562,7 +661,13 @@ struct FriendRequestItem: Codable {
 
 struct UploadResponse: Codable {
     let url: String
-    let filename: String
+    let filename: String?
+    let public_id: String?
+    let format: String?
+    let width: Int?
+    let height: Int?
+    let size: Int?
+    let mimetype: String?
 }
 
 struct EmptyResponse: Codable {

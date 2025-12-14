@@ -7,21 +7,24 @@ import SwiftUI
 
 struct FriendsView: View {
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var friendEmail = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var friendRequests: FriendRequestsResponse?
     @State private var showRequests = false
     
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -30,7 +33,7 @@ struct FriendsView: View {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Добавить друга")
                                     .font(.headline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 
                                 HStack {
                                     TextField("Email друга", text: $friendEmail)
@@ -38,9 +41,9 @@ struct FriendsView: View {
                                         .keyboardType(.emailAddress)
                                         .autocapitalization(.none)
                                         .padding(12)
-                                        .background(Color.white.opacity(0.1))
+                                        .background(AppColors.textFieldBackground(for: currentColorScheme))
                                         .cornerRadius(8)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
                                     
                                     Button {
                                         Task {
@@ -79,7 +82,7 @@ struct FriendsView: View {
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("Запросы на дружбу")
                                         .font(.headline)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                     
                                     if !requests.incoming.isEmpty {
                                         Text("Входящие")
@@ -91,7 +94,7 @@ struct FriendsView: View {
                                                 VStack(alignment: .leading, spacing: 4) {
                                                     Text(request.user.name ?? request.user.email)
                                                         .font(.headline)
-                                                        .foregroundStyle(.white)
+                                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                                     Text(request.user.email)
                                                         .font(.caption)
                                                         .foregroundStyle(.secondary)
@@ -134,7 +137,7 @@ struct FriendsView: View {
                                                 VStack(alignment: .leading, spacing: 4) {
                                                     Text(request.user.name ?? request.user.email)
                                                         .font(.headline)
-                                                        .foregroundStyle(.white)
+                                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                                     Text(request.user.email)
                                                         .font(.caption)
                                                         .foregroundStyle(.secondary)
@@ -159,7 +162,7 @@ struct FriendsView: View {
                             Text("Друзья (\(modelData.friends.count))")
                                 .font(.title2)
                                 .fontWeight(.bold)
-                                .foregroundStyle(.white)
+                                .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 .padding(.horizontal)
                             
                             if modelData.friends.isEmpty {
@@ -192,7 +195,7 @@ struct FriendsView: View {
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text(friend.name)
                                                     .font(.headline)
-                                                    .foregroundStyle(.white)
+                                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                                 
                                                 Text(friend.email)
                                                     .font(.caption)

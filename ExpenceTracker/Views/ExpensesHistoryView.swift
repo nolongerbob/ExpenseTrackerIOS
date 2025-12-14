@@ -93,7 +93,17 @@ struct ExpensesHistoryView: View {
             expenses = expenses.filter { $0.date >= startDate && $0.date <= endDate }
         }
         
-        return expenses.sorted { $0.date > $1.date }
+        // Сортируем по дате по убыванию (новые сверху), затем по apiId (cuid содержит timestamp)
+        // CUID содержит timestamp в начале, поэтому лексикографическая сортировка даст правильный порядок
+        return expenses.sorted { expense1, expense2 in
+            // Сначала по дате (более новые даты сверху)
+            if expense1.date != expense2.date {
+                return expense1.date > expense2.date
+            }
+            // Если даты одинаковые, сортируем по apiId в обратном порядке (cuid содержит timestamp)
+            // Более новые cuid будут иметь больший timestamp в начале строки
+            return expense1.apiId > expense2.apiId
+        }
     }
     
     var totalFiltered: Double {
@@ -116,15 +126,19 @@ struct ExpensesHistoryView: View {
         .sorted { $0.total > $1.total }
     }
     
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 ScrollView {
                     LazyVStack(spacing: 20) {
@@ -172,7 +186,7 @@ struct ExpensesHistoryView: View {
                                             .tint(.blue)
                                     }
                                     .font(.caption)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 }
                                 
                                 Divider()
@@ -251,7 +265,7 @@ struct ExpensesHistoryView: View {
                                     HStack {
                                         Text("Распределение расходов")
                                             .font(.headline)
-                                            .foregroundStyle(.white)
+                                            .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                         
                                         Spacer()
                                         
@@ -276,14 +290,14 @@ struct ExpensesHistoryView: View {
                                                     
                                                     Text(item.category.name)
                                                         .font(.subheadline)
-                                                        .foregroundStyle(.white)
+                                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                                     
                                                     Spacer()
                                                     
                                                     Text(formatCurrency(item.total))
                                                         .font(.subheadline)
                                                         .fontWeight(.semibold)
-                                                        .foregroundStyle(.white)
+                                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                                     
                                                     Text("\(item.percentage, specifier: "%.0f")%")
                                                         .font(.caption)
@@ -327,7 +341,7 @@ struct ExpensesHistoryView: View {
                                 Text("История \(transactionType == .expenses ? "расходов" : "доходов")")
                                     .font(.title2)
                                     .fontWeight(.bold)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                     .padding(.horizontal)
                                 
                                 ForEach(filteredExpenses) { expense in
@@ -350,6 +364,7 @@ struct ExpensesHistoryView: View {
             .navigationTitle("История")
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarColorScheme(currentColorScheme, for: .navigationBar)
         }
     }
     
@@ -383,7 +398,7 @@ struct ExpensesHistoryView: View {
                             )
                         } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: Expense.ExpenseType.fromAPI(expense.type)),
                         note: expense.note,
-                        date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                        date: APIService.parseDate(expense.spentAt) ?? Date(),
                         type: Expense.ExpenseType.fromAPI(expense.type)
                     )
                 }
@@ -410,54 +425,71 @@ struct ExpenseHistoryRow: View {
     let transactionType: ExpensesHistoryView.TransactionType
     let onDelete: () -> Void
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
+    @State private var showEditExpense = false
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
     
     var body: some View {
-        LiquidGlassCard {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(expense.note ?? "Без описания")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                    
-                    HStack(spacing: 8) {
-                        Text(expense.category.name)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+        Button {
+            showEditExpense = true
+        } label: {
+            LiquidGlassCard {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(expense.note ?? "Без описания")
+                            .font(.headline)
+                            .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                         
-                        Text("•")
-                            .foregroundStyle(.secondary)
-                        
-                        Text(expense.date, style: .date)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text(transactionType == .expenses ? "-\(formatCurrency(expense.amount))" : "+\(formatCurrency(expense.amount))")
-                        .font(.headline)
-                        .foregroundStyle(transactionType == .expenses ? .red : .green)
-                    
-                    Button {
-                        showDeleteConfirmation = true
-                    } label: {
-                        if isDeleting {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                                .tint(.red)
-                        } else {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
+                        HStack(spacing: 8) {
+                            Text(expense.category.name)
                                 .font(.caption)
+                                .foregroundStyle(.secondary)
+                            
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            
+                            Text(expense.date, style: .date)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    .disabled(isDeleting)
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 8) {
+                        Text(transactionType == .expenses ? "-\(formatCurrency(expense.amount))" : "+\(formatCurrency(expense.amount))")
+                            .font(.headline)
+                            .foregroundStyle(transactionType == .expenses ? .red : .green)
+                        
+                        Button {
+                            showDeleteConfirmation = true
+                        } label: {
+                            if isDeleting {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .tint(.red)
+                            } else {
+                                Image(systemName: "trash")
+                                    .foregroundStyle(.red)
+                                    .font(.caption)
+                            }
+                        }
+                        .disabled(isDeleting)
+                        .buttonStyle(.plain)
+                    }
                 }
             }
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showEditExpense) {
+            EditExpenseView(expense: expense)
         }
         .confirmationDialog("Удалить \(transactionType == .expenses ? "расход" : "доход")?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("Удалить", role: .destructive) {
@@ -503,7 +535,7 @@ struct ExpenseHistoryRow: View {
                             )
                         } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: Expense.ExpenseType.fromAPI(expense.type)),
                         note: expense.note,
-                        date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                        date: APIService.parseDate(expense.spentAt) ?? Date(),
                         type: Expense.ExpenseType.fromAPI(expense.type)
                     )
                 }

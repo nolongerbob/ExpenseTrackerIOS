@@ -10,7 +10,8 @@ struct SettingsView: View {
     @Environment(ExpenseModelData.self) private var modelData
     @Environment(\.dismiss) private var dismiss
     @AppStorage("is_authenticated") private var isAuthenticated = false
-    @AppStorage("colorScheme") private var colorScheme: String = "dark"
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
@@ -21,12 +22,8 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -35,7 +32,7 @@ struct SettingsView: View {
                             VStack(spacing: 16) {
                                 Text("Фото профиля")
                                     .font(.headline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 
                                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
                                     Group {
@@ -111,16 +108,16 @@ struct SettingsView: View {
                         LiquidGlassCard {
                             VStack(spacing: 16) {
                                 HStack {
-                                    Text("Тема")
-                                        .font(.headline)
-                                        .foregroundStyle(.white)
+                                Text("Тема")
+                                    .font(.headline)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                     
                                     Spacer()
                                     
                                     Picker("Тема", selection: $colorScheme) {
-                                        Text("Темная").tag("dark")
-                                        Text("Светлая").tag("light")
-                                        Text("Системная").tag("system")
+                                        ForEach(AppTheme.allCases, id: \.self) { theme in
+                                            Text(theme.displayName).tag(theme.rawValue)
+                                        }
                                     }
                                     .pickerStyle(.menu)
                                     .tint(.blue)
@@ -207,9 +204,14 @@ struct SettingsView: View {
         }
     }
     
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
     func updateColorScheme(_ scheme: String) {
-        // Обновление темы будет применено через @AppStorage
-        // Можно добавить сохранение в UserDefaults для применения при следующем запуске
+        // Обновление темы применяется автоматически через @AppStorage
+        // preferredColorScheme обновится автоматически
     }
     
     func logout() {

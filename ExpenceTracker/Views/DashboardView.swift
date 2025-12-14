@@ -7,6 +7,8 @@ import SwiftUI
 
 struct DashboardView: View {
     @Environment(ExpenseModelData.self) private var modelData
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var showAllExpenses = false
     @State private var isRefreshing = false
     
@@ -45,16 +47,16 @@ struct DashboardView: View {
         currentMonthIncome.count
     }
     
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                // Темный градиентный фон
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 ScrollView {
                     LazyVStack(spacing: 20) {
@@ -63,14 +65,14 @@ struct DashboardView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(greeting)
                                     .font(.system(size: 34, weight: .bold))
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 if let profile = modelData.profile {
                                     Text(profile.name)
                                         .font(.system(size: 34, weight: .bold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 } else {
                                     ProgressView()
-                                        .tint(.white)
+                                        .tint(AppColors.primaryText(for: currentColorScheme))
                                 }
                             }
                             
@@ -149,7 +151,7 @@ struct DashboardView: View {
                                     
                                     Text(formatCurrency(totalExpenses))
                                         .font(.system(size: 42, weight: .bold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                     
                                     Text("\(currentMonthExpenses.count) операций")
                                         .font(.caption)
@@ -205,7 +207,7 @@ struct DashboardView: View {
                                         HStack {
                                             Text("Распределение расходов")
                                                 .font(.headline)
-                                                .foregroundStyle(.white)
+                                                .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                             
                                             Spacer()
                                             
@@ -236,7 +238,7 @@ struct DashboardView: View {
                                                         
                                                         Text(item.category.name)
                                                             .font(.subheadline)
-                                                            .foregroundStyle(.white)
+                                                            .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                                             .lineLimit(1)
                                                         
                                                         Spacer()
@@ -244,7 +246,7 @@ struct DashboardView: View {
                                                         Text("\(item.percentage, specifier: "%.0f")%")
                                                             .font(.subheadline)
                                                             .fontWeight(.semibold)
-                                                            .foregroundStyle(.white)
+                                                            .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                                     }
                                                 }
                                             }
@@ -268,7 +270,7 @@ struct DashboardView: View {
                 ToolbarItem(placement: .principal) {
                     Text("Обзор")
                         .font(.headline)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                 }
             }
         }
@@ -288,19 +290,26 @@ struct DashboardView: View {
     }
     
     var categoryChartData: [(category: Category, total: Double, percentage: Double)] {
+        guard totalExpenses > 0, !currentMonthExpenses.isEmpty, !modelData.categories.isEmpty else {
+            return []
+        }
+        
         let totals = Dictionary(grouping: currentMonthExpenses, by: { $0.category.id })
             .mapValues { expenses in
                 expenses.reduce(0) { $0 + $1.amount }
             }
         
-        return totals.compactMap { (categoryId, total) in
+        let result = totals.compactMap { (categoryId, total) -> (category: Category, total: Double, percentage: Double)? in
+            guard total > 0 else { return nil }
             guard let category = modelData.categories.first(where: { $0.id == categoryId }) else {
                 return nil
             }
-            let percentage = totalExpenses > 0 ? (total / totalExpenses) * 100 : 0
+            let percentage = (total / totalExpenses) * 100
             return (category, total, percentage)
         }
         .sorted { $0.total > $1.total }
+        
+        return result
     }
     
     func formatCurrency(_ amount: Double) -> String {
@@ -335,7 +344,7 @@ struct DashboardView: View {
                             )
                         } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: Expense.ExpenseType.fromAPI(expense.type)),
                         note: expense.note,
-                        date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                        date: APIService.parseDate(expense.spentAt) ?? Date(),
                         type: Expense.ExpenseType.fromAPI(expense.type)
                     )
                 }
@@ -358,60 +367,113 @@ struct DashboardView: View {
 }
 
 // Круговая диаграмма
+struct PieChartDataItem: Identifiable {
+    let id: String
+    let category: Category
+    let total: Double
+    let percentage: Double
+    let index: Int
+}
+
 struct PieChartView: View {
     let data: [(category: Category, total: Double, percentage: Double)]
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
+    private var chartItems: [PieChartDataItem] {
+        data.enumerated().map { index, item in
+            PieChartDataItem(
+                id: item.category.id,
+                category: item.category,
+                total: item.total,
+                percentage: item.percentage,
+                index: index
+            )
+        }
+    }
     
     var body: some View {
         GeometryReader { geometry in
-            let radius = min(geometry.size.width, geometry.size.height) / 2 - 20
-            let innerRadius = radius * 0.75 // Большой внутренний радиус как в Apple Watch
-            
-            ZStack {
-                ForEach(Array(data.enumerated()), id: \.element.category.id) { index, item in
-                    PieSliceShape(
-                        startAngle: angleForIndex(index),
-                        endAngle: angleForIndex(index + 1),
-                        innerRadius: innerRadius,
-                        outerRadius: radius
-                    )
-                    .fill(item.category.color)
-                    .overlay {
+            if data.isEmpty {
+                // Показываем пустое состояние
+                VStack(spacing: 8) {
+                    Image(systemName: "chart.pie")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("Нет данных")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                let radius = min(geometry.size.width, geometry.size.height) / 2 - 20
+                let innerRadius = radius * 0.75 // Большой внутренний радиус как в Apple Watch
+                let items = chartItems
+                
+                ZStack {
+                    ForEach(items, id: \.id) { item in
+                        let startAngle = angleForIndex(item.index)
+                        let endAngle = item.index < data.count - 1 
+                            ? angleForIndex(item.index + 1)
+                            : Angle(degrees: -90 + 360)
+                        
                         PieSliceShape(
-                            startAngle: angleForIndex(index),
-                            endAngle: angleForIndex(index + 1),
+                            startAngle: startAngle,
+                            endAngle: endAngle,
                             innerRadius: innerRadius,
                             outerRadius: radius
                         )
-                        .stroke(.white.opacity(0.15), lineWidth: 3)
-                    }
-                }
-                
-                // Центральный круг с общей суммой
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .frame(width: innerRadius * 2, height: innerRadius * 2)
-                    .overlay {
-                        VStack(spacing: 4) {
-                            Text("Всего")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(formatTotal())
-                                .font(.title3)
-                                .fontWeight(.bold)
-                                .foregroundStyle(.white)
+                        .fill(item.category.color)
+                        .overlay {
+                            PieSliceShape(
+                                startAngle: startAngle,
+                                endAngle: endAngle,
+                                innerRadius: innerRadius,
+                                outerRadius: radius
+                            )
+                            .stroke(.white.opacity(0.15), lineWidth: 3)
                         }
                     }
+                    
+                    // Центральный круг с общей суммой
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .frame(width: innerRadius * 2, height: innerRadius * 2)
+                        .overlay {
+                            VStack(spacing: 4) {
+                                Text("Всего")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(formatTotal())
+                                    .font(.title3)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
+                            }
+                        }
+                }
             }
         }
     }
     
     private func angleForIndex(_ index: Int) -> Angle {
-        let total = data.reduce(0) { $0 + $1.percentage }
+        guard !data.isEmpty else { return Angle(degrees: 0) }
+        
+        // Если индекс равен количеству элементов, возвращаем полный круг
+        if index >= data.count {
+            return Angle(degrees: -90 + 360) // Начинаем сверху и делаем полный круг
+        }
+        
         var currentAngle: Double = -90 // Начинаем сверху
         
+        // Проценты уже в диапазоне 0-100, поэтому просто умножаем на 3.6 (360/100)
         for i in 0..<index {
             if i < data.count {
-                currentAngle += (data[i].percentage / total) * 360
+                currentAngle += data[i].percentage * 3.6
             }
         }
         

@@ -22,15 +22,19 @@ struct CategoriesView: View {
         .sorted { $0.total > $1.total }
     }
     
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
+    
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea()
+                AppColors.backgroundGradient(for: currentColorScheme)
+                    .ignoresSafeArea()
                 
                 if categoryTotals.isEmpty {
                     VStack(spacing: 16) {
@@ -56,7 +60,7 @@ struct CategoriesView: View {
                                                 VStack(alignment: .leading, spacing: 4) {
                                                     Text(item.category.name)
                                                         .font(.headline)
-                                                        .foregroundStyle(.white)
+                                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                                     
                                                     Text("\(item.count) операций")
                                                         .font(.caption)
@@ -67,7 +71,7 @@ struct CategoriesView: View {
                                                 
                                                 Text(formatCurrency(item.total))
                                                     .font(.headline)
-                                                    .foregroundStyle(.white)
+                                                    .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                             }
                                             
                                             // Прогресс-бар
@@ -107,6 +111,7 @@ struct CategoriesView: View {
             .navigationTitle("Расходы по категориям")
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarColorScheme(currentColorScheme, for: .navigationBar)
             .onAppear {
                 Task {
                     await refreshData()
@@ -139,7 +144,7 @@ struct CategoriesView: View {
                             )
                         } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: .expense),
                         note: expense.note,
-                        date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                        date: APIService.parseDate(expense.spentAt) ?? Date(),
                         type: Expense.ExpenseType.fromAPI(expense.type)
                     )
                 }

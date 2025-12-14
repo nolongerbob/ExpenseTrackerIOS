@@ -8,27 +8,34 @@ import SwiftUI
 struct LoginView: View {
     @Environment(ExpenseModelData.self) private var modelData
     @AppStorage("is_authenticated") private var isAuthenticated = false
+    @AppStorage("colorScheme") private var colorScheme: String = "system"
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var email = ""
     @State private var password = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showRegister = false
     
+    private var currentColorScheme: ColorScheme? {
+        let theme = AppTheme(rawValue: colorScheme) ?? .system
+        return theme.colorScheme ?? systemColorScheme
+    }
+    
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.1, green: 0.1, blue: 0.15), .black],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
-            
-            ScrollView {
+        Group {
+            if isLoading {
+                LoadingView()
+            } else {
+                ZStack {
+                    AppColors.backgroundGradient(for: currentColorScheme)
+                        .ignoresSafeArea()
+                    
+                    ScrollView {
                 VStack(spacing: 32) {
                     VStack(spacing: 8) {
                         Text("Добро пожаловать!")
                             .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                         
                         Text("Войдите в свой аккаунт")
                             .font(.subheadline)
@@ -48,9 +55,9 @@ struct LoginView: View {
                                     .keyboardType(.emailAddress)
                                     .autocapitalization(.none)
                                     .padding(12)
-                                    .background(Color.white.opacity(0.1))
+                                    .background(AppColors.textFieldBackground(for: currentColorScheme))
                                     .cornerRadius(8)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
                             }
                             
                             VStack(alignment: .leading, spacing: 8) {
@@ -62,9 +69,9 @@ struct LoginView: View {
                                     .textFieldStyle(.plain)
                                     .autocapitalization(.none)
                                     .padding(12)
-                                    .background(Color.white.opacity(0.1))
+                                    .background(AppColors.textFieldBackground(for: currentColorScheme))
                                     .cornerRadius(8)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(AppColors.textFieldText(for: currentColorScheme))
                             }
                             
                             if let error = errorMessage {
@@ -81,11 +88,11 @@ struct LoginView: View {
                                 if isLoading {
                                     ProgressView()
                                         .progressViewStyle(.circular)
-                                        .tint(.white)
+                                        .tint(AppColors.primaryText(for: currentColorScheme))
                                 } else {
                                     Text("Войти")
                                         .font(.headline)
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.primaryText(for: currentColorScheme))
                                 }
                             }
                             .buttonStyle(LiquidGlassButton())
@@ -107,6 +114,8 @@ struct LoginView: View {
                         }
                     }
                     .padding(.horizontal)
+                }
+            }
                 }
             }
         }
@@ -227,7 +236,7 @@ struct LoginView: View {
                             )
                         } ?? Category(id: "none", name: "Без категории", color: .gray, icon: "tag.fill", type: Expense.ExpenseType.fromAPI(expense.type)),
                         note: expense.note,
-                        date: ISO8601DateFormatter().date(from: expense.spentAt) ?? Date(),
+                        date: APIService.parseDate(expense.spentAt) ?? Date(),
                         type: Expense.ExpenseType.fromAPI(expense.type)
                     )
                 }
@@ -275,18 +284,21 @@ struct LoginView: View {
                                 authorId: post.author.id, // Сохраняем ID автора
                                 createdAt: ISO8601DateFormatter().date(from: post.createdAt) ?? Date(),
                                 imageUrl: post.imageUrl.map { APIService.shared.getImageURL($0) },
-                                likes: post.likes.map { like in
-                                    Like(id: UUID(), userId: UUID(uuidString: like.userId) ?? UUID())
+                                likes: post.likes.compactMap { like in
+                                    guard let userIdString = like.userId else { return nil }
+                                    return Like(id: UUID(), userId: UUID(uuidString: userIdString) ?? UUID())
                                 },
                                 comments: post.comments.map { comment in
                                     Comment(
                                         id: UUID(uuidString: comment.id) ?? UUID(),
+                                        apiId: comment.id,
                                         content: comment.content,
                                         author: UserProfile(
                                             name: comment.author.name ?? comment.author.id,
                                             email: comment.author.id,
                                             avatar: comment.author.image
                                         ),
+                                        authorId: comment.author.id,
                                         createdAt: ISO8601DateFormatter().date(from: comment.createdAt) ?? Date()
                                     )
                                 }
